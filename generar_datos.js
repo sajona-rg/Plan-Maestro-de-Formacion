@@ -3,7 +3,7 @@ import path from 'path';
 import xlsx from 'xlsx';
 
 const actPath = process.cwd();
-const publicDataPath = path.join(actPath, 'public', 'data');
+const publicDataPath = path.join(actPath, 'data');
 
 if (!fs.existsSync(publicDataPath)) {
     fs.mkdirSync(publicDataPath, { recursive: true });
