@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard · Plan Maestro de Formación 2026</title>
+    <meta name="description" content="Dashboard Gerencial consolidado de todos los pilares del Plan Maestro de Formación 2026 - LIS Colombia">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- ===== HEADER ===== -->
+    <header id="main-header">
+        <div class="header-left">
+            <span class="header-icon">📋</span>
+            <div>
+                <h1>Plan Maestro de Formación · Dashboard Gerencial</h1>
+                <p id="header-subtitle">Cargando...</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="filter-inline">
+                <span class="filter-icon">🏷️</span>
+                <label>Regional:</label>
+                <select id="regionalSelect">
+                    <option value="all">Todas</option>
+                </select>
+            </div>
+            <div class="filter-inline">
+                <span class="filter-icon">📍</span>
+                <label>CD:</label>
+                <select id="cdSelect">
+                    <option value="all">Todos los CDs</option>
+                </select>
+            </div>
+            <span class="badge-cumplimiento" id="badge-cumplimiento">0% Cumplimiento</span>
+            <select id="pilarSelect" class="pilar-selector">
+                <option value="seguridad">Seguridad 2026</option>
+                <option value="gente" selected>People 2026</option>
+                <option value="flota">Flota 2026</option>
+                <option value="gestion">Gestión 2026</option>
+                <option value="reparto">Reparto 2026</option>
+            </select>
+        </div>
+    </header>
+
+    <!-- ===== NAV TABS ===== -->
+    <nav id="main-nav">
+        <ul id="mainTabs">
+            <li class="active" data-view="general"><span class="tab-icon">📊</span> Vista General</li>
+            <li data-view="cds"><span class="tab-icon">📈</span> Comparativa CDs</li>
+            <li data-view="modulos"><span class="tab-icon">📚</span> Por Módulo</li>
+            <li data-view="preguntas"><span class="tab-icon">❓</span> Análisis Preguntas</li>
+            <li data-view="cargos"><span class="tab-icon">👤</span> Por Cargo</li>
+            <li data-view="rendimiento"><span class="tab-icon">🎯</span> Rendimiento Personal</li>
+            <li data-view="satisfaccion"><span class="tab-icon">🌟</span> Evaluación Entrenamiento</li>
+        </ul>
+    </nav>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main id="dashboard">
+
+        <!-- ========== VISTA GENERAL ========== -->
+        <section id="view-general" class="view active">
+
+            <!-- KPI Cards -->
+            <div class="kpi-row">
+                <div class="kpi-card kpi-primary">
+                    <h2 id="kpi-participaciones">0</h2>
+                    <p>Total Participaciones</p>
+                    <small id="kpi-modulos-count">0 módulos</small>
+                </div>
+                <div class="kpi-card kpi-green">
+                    <h2 id="kpi-cumplimiento">0%</h2>
+                    <p>Cumplimiento Global</p>
+                    <small id="kpi-aprobados-count">0 aprobados</small>
+                </div>
+                <div class="kpi-card kpi-blue">
+                    <h2 id="kpi-nota">0</h2>
+                    <p>Nota Promedio</p>
+                    <small>Sobre 100 pts</small>
+                </div>
+                <div class="kpi-card kpi-red">
+                    <h2 id="kpi-reprobados">0</h2>
+                    <p>Reprobados</p>
+                    <small id="kpi-reprobados-pct">0% del total</small>
+                </div>
+                <div class="kpi-card kpi-dark">
+                    <h2 id="kpi-centros">0</h2>
+                    <p>Centros Activos</p>
+                    <small id="kpi-regionales-count">0 Regionales</small>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="grid-2">
+                <div class="card">
+                    <h3>% APROBACIÓN Y NOTA PROMEDIO POR MÓDULO</h3>
+                    <canvas id="chart-general-modulos"></canvas>
+                </div>
+                <div class="card">
+                    <h3>DISTRIBUCIÓN DE RESULTADOS</h3>
+                    <canvas id="chart-general-donut"></canvas>
+                </div>
+            </div>
+
+            <!-- Charts Row 2 -->
+            <div class="grid-2">
+                <div class="card">
+                    <h3>DESEMPEÑO POR REGIONAL</h3>
+                    <canvas id="chart-general-regional"></canvas>
+                </div>
+                <div class="card">
+                    <h3>NOTA PROMEDIO POR REGIONAL</h3>
+                    <canvas id="chart-general-regional-nota"></canvas>
+                </div>
+            </div>
+
+            <!-- Top 10 CDs Reprobados -->
+            <div class="card">
+                <h3>TOP 10 CDS CON MÁS REPROBADOS</h3>
+                <div class="table-wrap">
+                    <table id="table-top-reprobados">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Centro Distribución</th>
+                                <th>Regional</th>
+                                <th>Participac.</th>
+                                <th>Nota Prom.</th>
+                                <th>% Aprob.</th>
+                                <th>Reprobados</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== COMPARATIVA CDS ========== -->
+        <section id="view-cds" class="view">
+            <div class="grid-2">
+                <div class="card">
+                    <h3>% APROBACIÓN POR CENTRO DE DISTRIBUCIÓN</h3>
+                    <canvas id="chart-cds-aprob"></canvas>
+                </div>
+                <div class="card">
+                    <h3>NOTA PROMEDIO POR CENTRO DE DISTRIBUCIÓN</h3>
+                    <canvas id="chart-cds-nota"></canvas>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <h3>MAPA DE CALOR REGIONAL × MÓDULO</h3>
+                    <div class="table-wrap" id="heatmap-container"></div>
+                </div>
+                <div class="card">
+                    <h3>RANKING COMPLETO DE CDS</h3>
+                    <div class="table-wrap">
+                        <table id="table-ranking-cds">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Centro Distribución</th>
+                                    <th>Regional</th>
+                                    <th>Participac.</th>
+                                    <th>Nota Prom.</th>
+                                    <th>% Aprob.</th>
+                                    <th>Reprobados</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== POR MÓDULO ========== -->
+        <section id="view-modulos" class="view">
+            <!-- Dynamic KPI cards per module -->
+            <div class="kpi-row" id="modulo-kpi-row"></div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>% APROBACIÓN VS NOTA PROMEDIO POR MÓDULO</h3>
+                    <canvas id="chart-modulo-bar"></canvas>
+                </div>
+                <div class="card">
+                    <h3>MAPA DE CALOR MÓDULOS</h3>
+                    <div class="table-wrap" id="heatmap-modulos-container"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>DISTRIBUCIÓN DE PUNTAJES POR MÓDULO</h3>
+                <canvas id="chart-modulo-dist"></canvas>
+            </div>
+        </section>
+
+        <!-- ========== ANÁLISIS PREGUNTAS ========== -->
+        <section id="view-preguntas" class="view">
+            <div class="grid-2">
+                <div class="card">
+                    <h3>RANKING DE DIFICULTAD — TOP 10 PREGUNTAS CON MÁS ERRORES</h3>
+                    <canvas id="chart-preguntas-top10"></canvas>
+                </div>
+                <div class="card">
+                    <h3>FALLOS POR MÓDULO</h3>
+                    <canvas id="chart-preguntas-modulo-donut"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>TOP 5 PREGUNTAS CON MÁS FALLOS</h3>
+                <canvas id="chart-preguntas-top5-bar"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>DETALLE COMPLETO DE PREGUNTAS</h3>
+                <div class="table-wrap">
+                    <table id="table-preguntas">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Módulo</th>
+                                <th>Pregunta</th>
+                                <th>% Acierto</th>
+                                <th>% Error</th>
+                                <th>Fallos</th>
+                                <th>Total Resp.</th>
+                                <th>Prioridad</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== POR CARGO ========== -->
+        <section id="view-cargos" class="view">
+            <div class="grid-2">
+                <div class="card">
+                    <h3>% APROBACIÓN POR CARGO</h3>
+                    <canvas id="chart-cargo-aprob"></canvas>
+                </div>
+                <div class="card">
+                    <h3>NOTA PROMEDIO POR CARGO</h3>
+                    <canvas id="chart-cargo-nota"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>DETALLE POR CARGO</h3>
+                <div class="table-wrap">
+                    <table id="table-cargos">
+                        <thead>
+                            <tr>
+                                <th>Cargo</th>
+                                <th>Participaciones</th>
+                                <th>Nota Prom.</th>
+                                <th>% Aprobación</th>
+                                <th>Reprobados</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== RENDIMIENTO PERSONAL ========== -->
+        <section id="view-rendimiento" class="view">
+            <!-- CD Detail Header -->
+            <div class="cd-detail-banner" id="cd-detail-banner">
+                <div>
+                    <h2 id="rend-cd-name">Seleccione un CD</h2>
+                    <p id="rend-cd-info">Use los filtros de Regional y CD para ver el rendimiento individual</p>
+                </div>
+                <div class="rend-cumpl" id="rend-cumpl">—</div>
+            </div>
+
+            <div class="kpi-row">
+                <div class="kpi-card kpi-primary">
+                    <h2 id="rend-total">0</h2>
+                    <p>Total Colaboradores Únicos</p>
+                    <small>Con al menos 1 módulo</small>
+                </div>
+                <div class="kpi-card kpi-green">
+                    <h2 id="rend-aptos">0</h2>
+                    <p>✅ Personal Apto</p>
+                    <small id="rend-aptos-pct">0% aprobó todos sus módulos</small>
+                </div>
+                <div class="kpi-card kpi-red">
+                    <h2 id="rend-reforzar">0</h2>
+                    <p>⚠ Personal a Reforzar</p>
+                    <small id="rend-reforzar-pct">0% con al menos 1 reprobado</small>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>🔴 TOP 5 PREGUNTAS MÁS DIFÍCILES</h3>
+                    <canvas id="chart-rend-dificiles"></canvas>
+                    <div id="cards-rend-dificiles" class="question-cards-container"></div>
+                </div>
+                <div class="card">
+                    <h3>🟢 TOP 5 PREGUNTAS MÁS FÁCILES</h3>
+                    <canvas id="chart-rend-faciles"></canvas>
+                    <div id="cards-rend-faciles" class="question-cards-container"></div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>PERSONAL APTO VS PERSONAL A REFORZAR</h3>
+                    <canvas id="chart-rend-apto-donut"></canvas>
+                </div>
+                <div class="card">
+                    <h3 id="title-rend-reprobados">REPROBADOS POR MÓDULO</h3>
+                    <canvas id="chart-rend-reprobados-modulo"></canvas>
+                </div>
+            </div>
+
+            <div id="rend-warning-banner" style="display:none; background: #fff3cd; color: #856404; padding: 12px 16px; border-left: 5px solid #ffc107; margin-bottom: 1.5rem; font-weight: 500; font-size: 0.9rem; border-radius: 4px;">
+                ⚠ <span id="rend-warning-text"></span>
+            </div>
+
+            <div class="card">
+                <h3>📋 PERSONAL A REFORZAR — DETALLE</h3>
+                <div class="table-wrap">
+                    <table id="table-rend-personal">
+                        <thead>
+                            <tr>
+                                <th>Colaborador</th>
+                                <th>Cargo</th>
+                                <th>CD</th>
+                                <th>Módulos tomados</th>
+                                <th>Aprobados</th>
+                                <th>Nota Prom.</th>
+                                <th>Módulos a Reforzar</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== EVALUACIÓN ENTRENAMIENTO ========== -->
+        <section id="view-satisfaccion" class="view">
+            <div class="kpi-row">
+                <div class="kpi-card kpi-primary">
+                    <h2 id="sat-promedio">0/10</h2>
+                    <p>Satisfacción General</p>
+                    <small id="sat-total-resp">0 respuestas recibidas</small>
+                </div>
+                <div class="kpi-card kpi-green">
+                    <h2 id="sat-excelente">0%</h2>
+                    <p>Evaluación Excelente (9-10)</p>
+                    <small id="sat-excelente-count">0 promotores</small>
+                </div>
+                <div class="kpi-card kpi-red">
+                    <h2 id="sat-mejorar">0%</h2>
+                    <p>Áreas de Mejora (≤6)</p>
+                    <small id="sat-mejorar-count">0 detractores</small>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>DISTRIBUCIÓN DE SATISFACCIÓN (NPS)</h3>
+                    <canvas id="chart-sat-distribucion"></canvas>
+                </div>
+                <div class="card">
+                    <h3>SATISFACCIÓN PROMEDIO POR MÓDULO</h3>
+                    <canvas id="chart-sat-modulos"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>DETALLE DE SATISFACCIÓN POR MÓDULO</h3>
+                <div class="table-wrap">
+                    <table id="table-sat-modulos">
+                        <thead>
+                            <tr>
+                                <th>Módulo</th>
+                                <th>Respuestas</th>
+                                <th>Nota Promedio</th>
+                                <th>% Excelente (9-10)</th>
+                                <th>% Aceptable (7-8)</th>
+                                <th>% Mejora (≤6)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer id="main-footer">
+        Dashboard Gerencial · Plan Maestro de Formación 2026 · LIS Colombia
+    </footer>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
