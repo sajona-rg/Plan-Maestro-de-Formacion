@@ -1,3 +1,15 @@
+# Dependencias
 node_modules/
+
+# Datos Crudos (Excels)
+apartado\ pilar\ de\ */
+*.xlsx
+*.xls
+
+# Logs y temporales
 .DS_Store
 *.log
+npm-debug.log*
+
+# Entorno
+.env
