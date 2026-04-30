@@ -53,5 +53,16 @@ El dashboard se actualiza automáticamente en la web a través de **GitHub Pages
 - **Deduplicación:** Se garantiza que cada colaborador cuente como una participación única por módulo.
 - **Rendimiento:** Las animaciones están optimizadas para una carga rápida y fluida en cualquier navegador.
 
+### 🧪 Auditoría Técnica (Script de Verificación)
+Para realizar una auditoría holística y asegurar que los datos consolidados son verídicos, puedes ejecutar el script de auditoría:
+```bash
+node scratch/audit_data.cjs
+```
+Este script analiza los 5 pilares en paralelo y verifica:
+- **Integridad:** Ausencia de registros nulos o mal formateados.
+- **Deduplicación:** Confirma que no haya traslapes de datos entre diferentes orígenes.
+- **Cobertura:** Valida que todas las regionales y centros de distribución estén correctamente mapeados.
+- **Consistencia:** Genera un resumen estadístico comparativo para asegurar que el "Consolidado Nacional" sea exacto.
+
 ---
-*Desarrollado con rigor de análisis de datos senior.*
+*Desarrollado con rigor de análisis de datos senior.* Desarrollado por Santiago Sajona, ingeniero informático. https://sajona-rg.github.io/Plan-Maestro-de-Formacion/

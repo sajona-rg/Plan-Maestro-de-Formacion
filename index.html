@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard · Plan Maestro de Formación 2026</title>
-    <meta name="description" content="Dashboard Gerencial consolidado de todos los pilares del Plan Maestro de Formación 2026 - LIS Colombia">
+    <meta name="description"
+        content="Dashboard Gerencial consolidado de todos los pilares del Plan Maestro de Formación 2026 - LIS Colombia">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
     <!-- ===== HEADER ===== -->
     <header id="main-header">
@@ -38,6 +42,7 @@
             </div>
             <span class="badge-cumplimiento" id="badge-cumplimiento">0% Cumplimiento</span>
             <select id="pilarSelect" class="pilar-selector">
+                <option value="all">Todos los Pilares</option>
                 <option value="seguridad">Seguridad 2026</option>
                 <option value="gente" selected>People 2026</option>
                 <option value="flota">Flota 2026</option>
@@ -99,7 +104,11 @@
             <div class="grid-2">
                 <div class="card">
                     <h3>% APROBACIÓN Y NOTA PROMEDIO POR MÓDULO</h3>
-                    <canvas id="chart-general-modulos"></canvas>
+                    <div class="chart-scroll-wrap-x">
+                        <div class="chart-inner-width" id="wrap-general-modulos">
+                            <canvas id="chart-general-modulos"></canvas>
+                        </div>
+                    </div>
                 </div>
                 <div class="card">
                     <h3>DISTRIBUCIÓN DE RESULTADOS</h3>
@@ -147,11 +156,19 @@
             <div class="grid-2">
                 <div class="card">
                     <h3>% APROBACIÓN POR CENTRO DE DISTRIBUCIÓN</h3>
-                    <canvas id="chart-cds-aprob"></canvas>
+                    <div class="chart-scroll-wrap">
+                        <div class="chart-inner-height" id="wrap-cds-aprob">
+                            <canvas id="chart-cds-aprob"></canvas>
+                        </div>
+                    </div>
                 </div>
                 <div class="card">
                     <h3>NOTA PROMEDIO POR CENTRO DE DISTRIBUCIÓN</h3>
-                    <canvas id="chart-cds-nota"></canvas>
+                    <div class="chart-scroll-wrap">
+                        <div class="chart-inner-height" id="wrap-cds-nota">
+                            <canvas id="chart-cds-nota"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="grid-2">
@@ -190,7 +207,11 @@
             <div class="grid-2">
                 <div class="card">
                     <h3>% APROBACIÓN VS NOTA PROMEDIO POR MÓDULO</h3>
-                    <canvas id="chart-modulo-bar"></canvas>
+                    <div class="chart-scroll-wrap-x">
+                        <div class="chart-inner-width" id="wrap-modulo-bar">
+                            <canvas id="chart-modulo-bar"></canvas>
+                        </div>
+                    </div>
                 </div>
                 <div class="card">
                     <h3>MAPA DE CALOR MÓDULOS</h3>
@@ -200,7 +221,11 @@
 
             <div class="card">
                 <h3>DISTRIBUCIÓN DE PUNTAJES POR MÓDULO</h3>
-                <canvas id="chart-modulo-dist"></canvas>
+                <div class="chart-scroll-wrap" style="max-height: 500px;">
+                    <div class="chart-inner-height" id="wrap-modulo-dist">
+                        <canvas id="chart-modulo-dist"></canvas>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -209,7 +234,11 @@
             <div class="grid-2">
                 <div class="card">
                     <h3>RANKING DE DIFICULTAD — TOP 10 PREGUNTAS CON MÁS ERRORES</h3>
-                    <canvas id="chart-preguntas-top10"></canvas>
+                    <div class="chart-scroll-wrap" style="max-height: 450px;">
+                        <div class="chart-inner-height" id="wrap-preguntas-top10">
+                            <canvas id="chart-preguntas-top10"></canvas>
+                        </div>
+                    </div>
                 </div>
                 <div class="card">
                     <h3>FALLOS POR MÓDULO</h3>
@@ -219,7 +248,11 @@
 
             <div class="card">
                 <h3>TOP 5 PREGUNTAS CON MÁS FALLOS</h3>
-                <canvas id="chart-preguntas-top5-bar"></canvas>
+                <div class="chart-scroll-wrap" style="max-height: 400px;">
+                    <div class="chart-inner-height" id="wrap-preguntas-top5-bar">
+                        <canvas id="chart-preguntas-top5-bar"></canvas>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
@@ -249,11 +282,19 @@
             <div class="grid-2">
                 <div class="card">
                     <h3>% APROBACIÓN POR CARGO</h3>
-                    <canvas id="chart-cargo-aprob"></canvas>
+                    <div class="chart-scroll-wrap">
+                        <div class="chart-inner-height" id="wrap-cargo-aprob">
+                            <canvas id="chart-cargo-aprob"></canvas>
+                        </div>
+                    </div>
                 </div>
                 <div class="card">
                     <h3>NOTA PROMEDIO POR CARGO</h3>
-                    <canvas id="chart-cargo-nota"></canvas>
+                    <div class="chart-scroll-wrap">
+                        <div class="chart-inner-height" id="wrap-cargo-nota">
+                            <canvas id="chart-cargo-nota"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card">
@@ -308,12 +349,20 @@
             <div class="grid-2">
                 <div class="card">
                     <h3>🔴 TOP 5 PREGUNTAS MÁS DIFÍCILES</h3>
-                    <canvas id="chart-rend-dificiles"></canvas>
+                    <div class="chart-scroll-wrap">
+                        <div class="chart-inner-height" id="wrap-rend-dificiles">
+                            <canvas id="chart-rend-dificiles"></canvas>
+                        </div>
+                    </div>
                     <div id="cards-rend-dificiles" class="question-cards-container"></div>
                 </div>
                 <div class="card">
                     <h3>🟢 TOP 5 PREGUNTAS MÁS FÁCILES</h3>
-                    <canvas id="chart-rend-faciles"></canvas>
+                    <div class="chart-scroll-wrap">
+                        <div class="chart-inner-height" id="wrap-rend-faciles">
+                            <canvas id="chart-rend-faciles"></canvas>
+                        </div>
+                    </div>
                     <div id="cards-rend-faciles" class="question-cards-container"></div>
                 </div>
             </div>
@@ -325,11 +374,16 @@
                 </div>
                 <div class="card">
                     <h3 id="title-rend-reprobados">REPROBADOS POR MÓDULO</h3>
-                    <canvas id="chart-rend-reprobados-modulo"></canvas>
+                    <div class="chart-scroll-wrap">
+                        <div class="chart-inner-height" id="wrap-rend-reprobados-modulo">
+                            <canvas id="chart-rend-reprobados-modulo"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div id="rend-warning-banner" style="display:none; background: #fff3cd; color: #856404; padding: 12px 16px; border-left: 5px solid #ffc107; margin-bottom: 1.5rem; font-weight: 500; font-size: 0.9rem; border-radius: 4px;">
+            <div id="rend-warning-banner"
+                style="display:none; background: #fff3cd; color: #856404; padding: 12px 16px; border-left: 5px solid #ffc107; margin-bottom: 1.5rem; font-weight: 500; font-size: 0.9rem; border-radius: 4px;">
                 ⚠ <span id="rend-warning-text"></span>
             </div>
 
@@ -381,10 +435,14 @@
                 </div>
                 <div class="card">
                     <h3>SATISFACCIÓN PROMEDIO POR MÓDULO</h3>
-                    <canvas id="chart-sat-modulos"></canvas>
+                    <div class="chart-scroll-wrap-x">
+                        <div class="chart-inner-width" id="wrap-sat-modulos">
+                            <canvas id="chart-sat-modulos"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
+
             <div class="card">
                 <h3>DETALLE DE SATISFACCIÓN POR MÓDULO</h3>
                 <div class="table-wrap">
@@ -414,4 +472,5 @@
 
     <script src="js/app.js"></script>
 </body>
+
 </html>

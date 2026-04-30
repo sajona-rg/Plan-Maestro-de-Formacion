@@ -1,6 +1,7 @@
 // ===== STATE =====
 let rawData = [];
 let currentPilar = 'gente';
+const PILARS = ['seguridad', 'gente', 'flota', 'gestion', 'reparto'];
 let filterRegional = 'all';
 let filterCD = 'all';
 let charts = {};
@@ -24,6 +25,9 @@ const COLORS = {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
+    // Register the datalabels plugin globally
+    Chart.register(ChartDataLabels);
+
     // Disable Chart.js animations globally to prevent buggy render on tab switch
     Chart.defaults.animation = false;
     Chart.defaults.maintainAspectRatio = false;
@@ -55,8 +59,16 @@ function switchTab(tab) {
 
 async function loadData() {
     try {
-        const r = await fetch(`data/${currentPilar}.json`);
-        const raw = await r.json();
+        let raw;
+        if (currentPilar === 'all') {
+            // Load all pillars in parallel
+            const promises = PILARS.map(p => fetch(`data/${p}.json`).then(r => r.json()));
+            const results = await Promise.all(promises);
+            raw = results.flat();
+        } else {
+            const r = await fetch(`data/${currentPilar}.json`);
+            raw = await r.json();
+        }
         
         // Senior Audit: Deduplicate by (identificacion, modulo) - keeping highest note
         const deduplicated = {};
@@ -138,7 +150,57 @@ function makeOrUpdate(id, config) {
     charts[id] = new Chart($(id), config);
 }
 
-const pilarNames = { seguridad:'Seguridad', gente:'People', flota:'Flota', gestion:'Gestión', reparto:'Reparto' };
+const pilarNames = { 
+    all: 'Consolidado Nacional',
+    seguridad: 'Seguridad', 
+    gente: 'People', 
+    flota: 'Flota', 
+    gestion: 'Gestión', 
+    reparto: 'Reparto' 
+};
+const BAR_HEIGHT = 28; // Min height per bar for scrollable charts
+const COL_WIDTH = 65;  // Balanced width per group for horizontal scroll
+
+function adjustChartHeight(canvasId, itemCount) {
+    const wrapper = $(`wrap-${canvasId.replace('chart-', '')}`);
+    if (!wrapper) return;
+    // Special height for stacked bars or charts with long multiline labels
+    let rowHeight = BAR_HEIGHT + 10;
+    if (canvasId.includes('modulo-dist')) rowHeight = 35;
+    if (canvasId.includes('rend-dificiles') || canvasId.includes('rend-faciles')) rowHeight = 55;
+    if (canvasId.includes('preguntas-top10') || canvasId.includes('preguntas-top5')) rowHeight = 60; // Taller for long question text
+    
+    const padding = 40; // axes and legends room
+    const calculatedHeight = (itemCount * rowHeight) + padding;
+    
+    // Set height (parent .chart-scroll-wrap will handle max-height and scroll)
+    wrapper.style.height = `${Math.max(calculatedHeight, 200)}px`;
+}
+
+function adjustChartWidth(canvasId, itemCount) {
+    const wrapper = $(`wrap-${canvasId.replace('chart-', '')}`);
+    if (!wrapper) return;
+    const minWidth = itemCount * COL_WIDTH;
+    wrapper.style.width = `${Math.max(minWidth, 600)}px`;
+}
+
+function splitLabel(label, limit = 40) {
+    if (!label) return '';
+    if (label.length <= limit) return label;
+    const words = label.split(' ');
+    const lines = [];
+    let currentLine = '';
+    words.forEach(w => {
+        if ((currentLine + w).length > limit) {
+            lines.push(currentLine.trim());
+            currentLine = w + ' ';
+        } else {
+            currentLine += w + ' ';
+        }
+    });
+    if (currentLine) lines.push(currentLine.trim());
+    return lines;
+}
 
 // ===== MAIN RENDER =====
 function render() {
@@ -157,8 +219,9 @@ function render() {
     const nFormatted = total.toLocaleString();
 
     // Update header
+    const pilarLabel = currentPilar === 'all' ? 'Consolidado Nacional' : `Pilar ${pilarNames[currentPilar]}`;
     $('header-subtitle').innerHTML = `
-        Pilar ${pilarNames[currentPilar]} · Enero-Abril 2026 · ${modulos.length} Módulos · ${centros.length} Centros de Distribución
+        ${pilarLabel} · Enero-Abril 2026 · ${modulos.length} Módulos · ${centros.length} Centros de Distribución
         <span class="margin-error">N=${nFormatted} ±${marginOfError}%</span>
     `;
     $('badge-cumplimiento').textContent = `${pctAprob.toFixed(1)}% Cumplimiento`;
@@ -172,7 +235,8 @@ function render() {
     $('kpi-reprobados').textContent = reprobados.toLocaleString();
     $('kpi-reprobados-pct').textContent = `${(total ? reprobados/total*100 : 0).toFixed(1)}% del total`;
     $('kpi-centros').textContent = centros.length;
-    $('kpi-regionales-count').textContent = `${regionales.length} Regionales · 1 Pilar`;
+    const activePillarsCount = currentPilar === 'all' ? PILARS.length : 1;
+    $('kpi-regionales-count').textContent = `${regionales.length} Regionales · ${activePillarsCount} Pilar${activePillarsCount > 1 ? 'es' : ''}`;
 
     renderGeneral(data, modulos);
     renderCDs(data, modulos);
@@ -190,6 +254,7 @@ function renderGeneral(data, modulos) {
     const mAprob = modulos.map(m => { const d = modGroup[m]; return (d.filter(x => x.aprobado).length / d.length * 100).toFixed(1); });
     const mNota = modulos.map(m => { const d = modGroup[m]; return (d.reduce((s, x) => s + x.nota, 0) / d.length).toFixed(1); });
 
+    adjustChartWidth('chart-general-modulos', mNames.length);
     makeOrUpdate('chart-general-modulos', {
         type: 'bar',
         data: {
@@ -199,17 +264,75 @@ function renderGeneral(data, modulos) {
                 { label: 'Nota Promedio', data: mNota, backgroundColor: COLORS.blue, borderRadius: 4 }
             ]
         },
-        options: { responsive: true, plugins: { legend: { position: 'top' }, datalabels: { display: false } }, scales: { y: { beginAtZero: true, max: 110 } } }
+        options: { 
+            responsive: true, 
+            plugins: { 
+                legend: { position: 'top' }, 
+                datalabels: { 
+                    display: true,
+                    anchor: 'end',
+                    align: 'top',
+                    offset: -2,
+                    font: { weight: 'bold', size: 10 },
+                    color: (ctx) => ctx.dataset.label.includes('%') ? COLORS.teal : COLORS.blue,
+                    formatter: (v, ctx) => ctx.dataset.label.includes('%') ? v + '%' : v
+                } 
+            }, 
+            scales: { y: { beginAtZero: true, max: 115 } } 
+        }
     });
 
     const apr = data.filter(d => d.aprobado).length;
+    const rep = data.length - apr;
+    const total = data.length;
+    
+    // Visual Floor for small slices
+    const minVal = total * 0.05; // 5% minimum visual slice
+    const renderData = [
+        apr > 0 ? Math.max(apr, minVal) : 0,
+        rep > 0 ? Math.max(rep, minVal) : 0
+    ];
+
     makeOrUpdate('chart-general-donut', {
         type: 'doughnut',
         data: {
             labels: ['Aprobados ✅', 'Reprobados ⚠'],
-            datasets: [{ data: [apr, data.length - apr], backgroundColor: [COLORS.teal, COLORS.red], borderWidth: 0 }]
+            datasets: [{ 
+                data: renderData, 
+                realData: [apr, rep],
+                backgroundColor: [COLORS.teal, COLORS.red], 
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
         },
-        options: { responsive: true, cutout: '60%', plugins: { legend: { position: 'bottom' }, datalabels: { display: false } } }
+        options: { 
+            responsive: true, 
+            cutout: '60%', 
+            plugins: { 
+                legend: { position: 'bottom' }, 
+                datalabels: { 
+                    display: true,
+                    color: '#fff',
+                    font: { weight: 'bold', size: 12 },
+                    formatter: (v, ctx) => {
+                        const val = ctx.dataset.realData[ctx.dataIndex];
+                        const pctRaw = (val / total * 100);
+                        if (pctRaw <= 0) return '';
+                        if (pctRaw < 0.95) return '<1%';
+                        return Math.round(pctRaw) + '%';
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => {
+                            const val = ctx.dataset.realData[ctx.dataIndex];
+                            const pct = (val / total * 100).toFixed(1);
+                            return ` ${ctx.label}: ${val} (${pct}%)`;
+                        }
+                    }
+                }
+            } 
+        }
     });
 
     // Regional bars
@@ -231,11 +354,17 @@ function renderGeneral(data, modulos) {
             indexAxis: 'y', responsive: true,
             plugins: {
                 legend: { display: false },
-                datalabels: { anchor: 'end', align: 'end', font: { weight: 'bold', size: 11 }, formatter: v => v + '%', color: '#333' }
+                datalabels: { 
+                    anchor: 'end', 
+                    align: (ctx) => (ctx.dataset.data[ctx.dataIndex] > 90 ? 'left' : 'right'), 
+                    offset: 4,
+                    font: { weight: 'bold', size: 10 }, 
+                    formatter: v => v + '%', 
+                    color: (ctx) => (ctx.dataset.data[ctx.dataIndex] > 90 ? '#fff' : '#333')
+                }
             },
-            scales: { x: { max: 101 } }
-        },
-        plugins: [ChartDataLabels]
+            scales: { x: { max: 110 } }
+        }
     });
 
     makeOrUpdate('chart-general-regional-nota', {
@@ -243,8 +372,19 @@ function renderGeneral(data, modulos) {
         data: { labels: regs, datasets: [{ label: 'Nota Promedio', data: regNota, backgroundColor: regColors, borderRadius: 4 }] },
         options: {
             indexAxis: 'y', responsive: true,
-            plugins: { legend: { display: false }, datalabels: { display: false } },
-            scales: { x: { min: 55, max: 101 } }
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    display: true, 
+                    anchor: 'end', 
+                    align: (ctx) => (ctx.dataset.data[ctx.dataIndex] > 90 ? 'left' : 'right'), 
+                    offset: 4,
+                    font: { weight: 'bold', size: 10 }, 
+                    color: (ctx) => (ctx.dataset.data[ctx.dataIndex] > 90 ? '#fff' : '#333'),
+                    formatter: v => v
+                } 
+            },
+            scales: { x: { min: 55, max: 110 } }
         }
     });
 
@@ -282,16 +422,48 @@ function renderCDs(data, modulos) {
     const notaData = cdsList.map(c => c.nota.toFixed(1));
     const barColors = cdsList.map(c => COLORS.regionalColors[c.reg] || COLORS.teal);
 
+    adjustChartHeight('chart-cds-aprob', labels.length);
     makeOrUpdate('chart-cds-aprob', {
         type: 'bar',
         data: { labels, datasets: [{ data: aprobData, backgroundColor: barColors, borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { x: { min: 65, max: 101 } } }
+        options: { 
+            indexAxis: 'y', responsive: true, 
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    display: true, 
+                    anchor: 'end', 
+                    align: 'right', 
+                    offset: 2,
+                    font: { weight: 'bold', size: 9 }, 
+                    color: '#333',
+                    formatter: v => v + '%' 
+                } 
+            }, 
+            scales: { x: { min: 65, max: 115 } } 
+        }
     });
 
+    adjustChartHeight('chart-cds-nota', labels.length);
     makeOrUpdate('chart-cds-nota', {
         type: 'bar',
         data: { labels, datasets: [{ data: notaData, backgroundColor: barColors.map(() => COLORS.blue), borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { x: { min: 55, max: 101 } } }
+        options: { 
+            indexAxis: 'y', responsive: true, 
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    display: true, 
+                    anchor: 'end', 
+                    align: 'right', 
+                    offset: 2,
+                    font: { weight: 'bold', size: 9 }, 
+                    color: '#333',
+                    formatter: v => v 
+                } 
+            }, 
+            scales: { x: { min: 55, max: 115 } } 
+        }
     });
 
     // Heatmap Regional x Modulo
@@ -346,13 +518,28 @@ function renderModulos(data, modulos) {
     const mAprob = modulos.map(m => (modGroup[m].filter(x => x.aprobado).length / modGroup[m].length * 100).toFixed(1));
     const mNota = modulos.map(m => (modGroup[m].reduce((s, x) => s + x.nota, 0) / modGroup[m].length).toFixed(1));
 
+    adjustChartWidth('chart-modulo-bar', mNames.length);
     makeOrUpdate('chart-modulo-bar', {
         type: 'bar',
         data: { labels: mNames, datasets: [
             { label: '% Aprobación', data: mAprob, backgroundColor: COLORS.teal, borderRadius: 4 },
             { label: 'Nota Promedio', data: mNota, backgroundColor: COLORS.blue, borderRadius: 4 }
         ] },
-        options: { responsive: true, plugins: { legend: { position: 'top' }, datalabels: { display: false } }, scales: { y: { beginAtZero: true, max: 110 } } }
+        options: { 
+            responsive: true, 
+            plugins: { 
+                legend: { position: 'top' }, 
+                datalabels: { 
+                    display: true,
+                    anchor: 'end',
+                    align: 'top',
+                    font: { weight: 'bold', size: 10 },
+                    color: (ctx) => ctx.dataset.label.includes('%') ? COLORS.teal : COLORS.blue,
+                    formatter: (v, ctx) => ctx.dataset.label.includes('%') ? v + '%' : v
+                } 
+            }, 
+            scales: { y: { beginAtZero: true, max: 115 } } 
+        }
     });
 
     // Heatmap modules
@@ -375,27 +562,63 @@ function renderModulos(data, modulos) {
     hHtml += '</tbody></table>';
     $('heatmap-modulos-container').innerHTML = hHtml;
 
-    // Distribution stacked bar
-    const distLabels = []; const d100 = []; const d80 = []; const d60 = []; const d40 = [];
+    // Distribution stacked bar with "Visual Floor" for tiny segments
+    const distLabels = []; 
+    const d100 = []; const d80 = []; const d60 = []; const d40 = [];
+    const r100 = []; const r80 = []; const r60 = []; const r40 = []; // Rendering values
+    
     modulos.forEach(m => {
         distLabels.push(m.length > 20 ? m.substring(0, 17) + '...' : m);
         const items = modGroup[m];
-        d100.push(items.filter(x => x.nota === 100).length);
-        d80.push(items.filter(x => x.nota >= 80 && x.nota < 100).length);
-        d60.push(items.filter(x => x.nota >= 60 && x.nota < 80).length);
-        d40.push(items.filter(x => x.nota < 60).length);
+        const v100 = items.filter(x => x.nota === 100).length;
+        const v80 = items.filter(x => x.nota >= 80 && x.nota < 100).length;
+        const v60 = items.filter(x => x.nota >= 60 && x.nota < 80).length;
+        const v40 = items.filter(x => x.nota < 60).length;
+        
+        d100.push(v100); d80.push(v80); d60.push(v60); d40.push(v40);
+        
+        // Calculate boosted values for rendering with a more aggressive Visual Floor
+        const total = v100 + v80 + v60 + v40;
+        const visualFloor = total * 0.12; // 12% minimum visual width ensures label space
+        r100.push(v100 > 0 ? Math.max(v100, visualFloor) : 0);
+        r80.push(v80 > 0 ? Math.max(v80, visualFloor) : 0);
+        r60.push(v60 > 0 ? Math.max(v60, visualFloor) : 0);
+        r40.push(v40 > 0 ? Math.max(v40, visualFloor) : 0);
     });
 
     makeOrUpdate('chart-modulo-dist', {
         type: 'bar',
         data: { labels: distLabels, datasets: [
-            { label: '100 pts', data: d100, backgroundColor: COLORS.teal },
-            { label: '80 pts', data: d80, backgroundColor: COLORS.blue },
-            { label: '60 pts', data: d60, backgroundColor: COLORS.tealLight },
-            { label: '≤40 pts', data: d40, backgroundColor: COLORS.red }
+            { label: '100 pts', data: r100, realData: d100, backgroundColor: COLORS.teal },
+            { label: '80 pts', data: r80, realData: d80, backgroundColor: COLORS.blue },
+            { label: '60 pts', data: r60, realData: d60, backgroundColor: COLORS.tealLight },
+            { label: '≤40 pts', data: r40, realData: d40, backgroundColor: COLORS.red }
         ] },
-        options: { responsive: true, plugins: { legend: { position: 'top' }, datalabels: { display: false } }, scales: { x: { stacked: true }, y: { stacked: true } } }
+        options: { 
+            indexAxis: 'y',
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { position: 'top' }, 
+                datalabels: { 
+                    display: (ctx) => ctx.dataset.realData[ctx.dataIndex] > 0,
+                    color: '#fff',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: (v, ctx) => ctx.dataset.realData[ctx.dataIndex]
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => ` ${ctx.dataset.label}: ${ctx.dataset.realData[ctx.dataIndex]}`
+                    }
+                }
+            }, 
+            scales: { 
+                x: { stacked: true, display: false }, 
+                y: { stacked: true } 
+            } 
+        }
     });
+    adjustChartHeight('chart-modulo-dist', distLabels.length);
 }
 
 // ===== ANÁLISIS PREGUNTAS =====
@@ -424,19 +647,84 @@ function renderPreguntas(data) {
     const topColors = top10.map((_, i) => i < 2 ? COLORS.red : i < 5 ? COLORS.orange : COLORS.yellow);
     makeOrUpdate('chart-preguntas-top10', {
         type: 'bar',
-        data: { labels: top10.map(q => q.q.length > 40 ? q.q.substring(0, 37) + '...' : q.q), datasets: [{ data: top10.map(q => q.pctError.toFixed(1)), backgroundColor: topColors, borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { x: { max: 40 } } }
+        data: { 
+            labels: top10.map(q => splitLabel(q.q, 40)), 
+            datasets: [{ data: top10.map(q => q.pctError.toFixed(1)), backgroundColor: topColors, borderRadius: 4 }] 
+        },
+        options: { 
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    display: true,
+                    anchor: 'end',
+                    align: 'right',
+                    font: { weight: 'bold', size: 10 },
+                    color: '#333',
+                    formatter: v => v + '%'
+                } 
+            }, 
+            scales: { 
+                y: { ticks: { autoSkip: false, maxRotation: 0, font: { size: 9 } } },
+                x: { max: 115 } 
+            } 
+        }
     });
+    adjustChartHeight('chart-preguntas-top10', top10.length);
 
-    // Fails by module donut
+    // Fails by module donut with Visual Floor for labels
     const modFails = {};
     qList.forEach(q => { modFails[q.modulo] = (modFails[q.modulo] || 0) + q.fails; });
     const mfKeys = Object.keys(modFails);
-    const donutColors = [COLORS.yellow, COLORS.red, COLORS.blue, COLORS.teal, COLORS.orange, COLORS.dark, '#9b59b6', '#1abc9c'];
+    const realVals = mfKeys.map(k => modFails[k]);
+    const totalReal = realVals.reduce((a, b) => a + b, 0);
+    
+    // Boost small segments for rendering
+    const minVal = totalReal * 0.05; // 5% minimum visual slice
+    const renderVals = realVals.map(v => v > 0 ? Math.max(v, minVal) : 0);
+
+    const donutColors = [COLORS.yellow, COLORS.red, COLORS.blue, COLORS.teal, COLORS.orange, COLORS.dark, '#9b59b6', '#1abc9c', '#34495e', '#e67e22', '#d35400', '#c0392b'];
+    
     makeOrUpdate('chart-preguntas-modulo-donut', {
         type: 'doughnut',
-        data: { labels: mfKeys.map(k => k.length > 25 ? k.substring(0, 22) + '...' : k), datasets: [{ data: mfKeys.map(k => modFails[k]), backgroundColor: donutColors.slice(0, mfKeys.length), borderWidth: 0 }] },
-        options: { responsive: true, cutout: '55%', plugins: { legend: { position: 'right', labels: { font: { size: 10 } } }, datalabels: { display: false } } }
+        data: { 
+            labels: mfKeys.map(k => k.length > 25 ? k.substring(0, 22) + '...' : k), 
+            datasets: [{ 
+                data: renderVals, 
+                realData: realVals,
+                backgroundColor: donutColors.slice(0, mfKeys.length), 
+                borderWidth: 1,
+                borderColor: '#fff'
+            }] 
+        },
+        options: { 
+            responsive: true, 
+            cutout: '50%', 
+            plugins: { 
+                legend: { position: 'right', labels: { font: { size: 9 }, boxWidth: 12 } }, 
+                datalabels: { 
+                    display: true,
+                    color: '#fff',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: (v, ctx) => {
+                        const val = ctx.dataset.realData[ctx.dataIndex];
+                        const pctRaw = (val / totalReal * 100);
+                        if (pctRaw <= 0) return '';
+                        if (pctRaw < 0.95) return '<1%';
+                        return Math.round(pctRaw) + '%';
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => {
+                            const val = ctx.dataset.realData[ctx.dataIndex];
+                            const pct = (val / totalReal * 100).toFixed(1);
+                            return ` ${ctx.label}: ${val} (${pct}%)`;
+                        }
+                    }
+                }
+            } 
+        }
     });
 
     // Top 5 bar
@@ -444,13 +732,26 @@ function renderPreguntas(data) {
     const t5Colors = [COLORS.teal, COLORS.blue, COLORS.yellow, COLORS.orange, COLORS.red];
     makeOrUpdate('chart-preguntas-top5-bar', {
         type: 'bar',
-        data: { labels: top5.map(q => q.q.length > 30 ? q.q.substring(0, 27) + '...' : q.q), datasets: [{ data: top5.map(q => q.fails), backgroundColor: t5Colors, borderRadius: 4 }] },
+        data: { labels: top5.map(q => splitLabel(q.q, 70)), datasets: [{ data: top5.map(q => q.fails), backgroundColor: t5Colors, borderRadius: 4 }] },
         options: {
-            indexAxis: 'y', responsive: true,
-            plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', font: { weight: 'bold' }, color: '#333' } },
-        },
-        plugins: [ChartDataLabels]
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    anchor: 'end', 
+                    align: (ctx) => ctx.dataset.data[ctx.dataIndex] > (Math.max(...top5.map(q => q.fails)) * 0.4) ? 'left' : 'right', 
+                    font: { weight: 'bold', size: 10 }, 
+                    color: (ctx) => ctx.dataset.data[ctx.dataIndex] > (Math.max(...top5.map(q => q.fails)) * 0.4) ? '#fff' : '#333',
+                    formatter: v => v > 0 ? v : ''
+                } 
+            },
+            scales: { 
+                y: { ticks: { autoSkip: false, maxRotation: 0, font: { size: 10 } } },
+                x: { beginAtZero: true, max: Math.max(...top5.map(q => q.fails)) * 1.25 } 
+            }
+        }
     });
+    adjustChartHeight('chart-preguntas-top5-bar', top5.length);
 
     // Table
     const getPriority = pct => {
@@ -462,8 +763,9 @@ function renderPreguntas(data) {
     tbody.innerHTML = qList.slice(0, 20).map((q, i) => {
         const p = getPriority(q.pctError);
         return `<tr>
-            <td>${i + 1}</td><td>${q.modulo.length > 25 ? q.modulo.substring(0, 22) + '...' : q.modulo}</td>
-            <td>${q.q.length > 50 ? q.q.substring(0, 47) + '...' : q.q}</td>
+            <td>${i + 1}</td>
+            <td><small>${q.modulo}</small></td>
+            <td style="max-width:350px; white-space:normal; text-align:left;">${q.q}</td>
             <td>${q.pctAcierto.toFixed(1)}%</td>
             <td class="text-red">${q.pctError.toFixed(1)}%</td>
             <td>${q.fails}</td><td>${q.total}</td>
@@ -485,16 +787,46 @@ function renderCargos(data) {
     const top = cList.slice(0, 15);
     const cColors = top.map((c, i) => c.pctA < 90 ? COLORS.yellow : c.pctA < 95 ? COLORS.tealLight : COLORS.teal);
 
+    adjustChartHeight('chart-cargo-aprob', top.length);
     makeOrUpdate('chart-cargo-aprob', {
         type: 'bar',
         data: { labels: top.map(c => c.cargo), datasets: [{ data: top.map(c => c.pctA.toFixed(1)), backgroundColor: cColors, borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { x: { min: 85, max: 101 } } }
+        options: { 
+            indexAxis: 'y', responsive: true, 
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    display: true,
+                    anchor: 'end',
+                    align: 'left',
+                    font: { weight: 'bold', size: 10 },
+                    color: '#fff',
+                    formatter: v => v + '%'
+                } 
+            }, 
+            scales: { x: { min: 80, max: 110 } } 
+        }
     });
 
+    adjustChartHeight('chart-cargo-nota', top.length);
     makeOrUpdate('chart-cargo-nota', {
         type: 'bar',
         data: { labels: top.map(c => c.cargo), datasets: [{ data: top.map(c => c.nota.toFixed(1)), backgroundColor: COLORS.blue, borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { x: { min: 80, max: 101 } } }
+        options: { 
+            indexAxis: 'y', responsive: true, 
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    display: true,
+                    anchor: 'end',
+                    align: 'left',
+                    font: { weight: 'bold', size: 10 },
+                    color: '#fff',
+                    formatter: v => v
+                } 
+            }, 
+            scales: { x: { min: 80, max: 110 } } 
+        }
     });
 
     // Sort by participations desc for the table
@@ -574,14 +906,18 @@ function renderRendimiento(data, modulos) {
 
     // Top 5 Difficult (lowest acierto first)
     const top5Diff = qList.filter(q => q.fails > 0).slice(0, 5);
+    const top5DiffReal = top5Diff.map(q => q.pctAcierto);
+    const top5DiffRender = top5DiffReal.map(v => Math.max(v, 12)); // 12% min visual width
     const diffColors = [COLORS.red, COLORS.orange, COLORS.yellow, '#f39c12', '#e67e22'];
+    
     makeOrUpdate('chart-rend-dificiles', {
         type: 'bar',
         data: {
-            labels: top5Diff.map(q => q.q.length > 35 ? q.q.substring(0, 32) + '...' : q.q),
+            labels: top5Diff.map(q => splitLabel(q.q, 35)),
             datasets: [{ 
                 label: '% acierto',
-                data: top5Diff.map(q => q.pctAcierto.toFixed(1)), 
+                data: top5DiffRender, 
+                realData: top5DiffReal,
                 backgroundColor: diffColors, 
                 borderRadius: 4,
                 barThickness: 24 
@@ -589,19 +925,38 @@ function renderRendimiento(data, modulos) {
         },
         options: {
             indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: { 
                 legend: { display: false }, 
-                datalabels: { display: false }, // Hide datalabels to keep clean, show in tooltip and cards
+                datalabels: { 
+                    display: true, 
+                    anchor: 'end', 
+                    align: (ctx) => ctx.dataset.realData[ctx.dataIndex] < 15 ? 'right' : 'left', 
+                    color: (ctx) => ctx.dataset.realData[ctx.dataIndex] < 15 ? '#333' : '#fff', 
+                    font: { weight: 'bold', size: 10 },
+                    formatter: (v, ctx) => ctx.dataset.realData[ctx.dataIndex].toFixed(1) + '%'
+                },
                 tooltip: {
                     callbacks: {
                         title: (ctx) => top5Diff[ctx[0].dataIndex].q,
-                        label: (ctx) => ` ${ctx.raw}% acierto`
+                        label: (ctx) => ` ${ctx.dataset.realData[ctx.dataIndex].toFixed(1)}% acierto`
                     }
                 }
             },
-            scales: { x: { min: 0, max: 100, title: { display: false } } }
+            scales: { 
+                y: { 
+                    ticks: { 
+                        autoSkip: false,
+                        maxRotation: 0,
+                        font: { size: 10 }
+                    }
+                },
+                x: { min: 0, max: 115 } 
+            }
         }
     });
+    adjustChartHeight('chart-rend-dificiles', top5Diff.length);
 
     // Populate Top 5 Diff Cards
     const diffCardsHtml = top5Diff.map((q, i) => `
@@ -618,13 +973,17 @@ function renderRendimiento(data, modulos) {
 
     // Top 5 Easiest
     const top5Easy = [...qList].sort((a, b) => a.pctError - b.pctError).slice(0, 5);
+    const top5EasyReal = top5Easy.map(q => q.pctAcierto);
+    const top5EasyRender = top5EasyReal.map(v => Math.max(v, 15)); 
+    
     makeOrUpdate('chart-rend-faciles', {
         type: 'bar',
         data: {
-            labels: top5Easy.map(q => q.q.length > 35 ? q.q.substring(0, 32) + '...' : q.q),
+            labels: top5Easy.map(q => splitLabel(q.q, 35)),
             datasets: [{ 
                 label: '% acierto',
-                data: top5Easy.map(q => q.pctAcierto.toFixed(1)), 
+                data: top5EasyRender, 
+                realData: top5EasyReal,
                 backgroundColor: COLORS.teal, 
                 borderRadius: 4,
                 barThickness: 24
@@ -632,19 +991,38 @@ function renderRendimiento(data, modulos) {
         },
         options: {
             indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: { 
                 legend: { display: false }, 
-                datalabels: { display: false }, // Hide datalabels to keep clean, show in cards
+                datalabels: { 
+                    display: true, 
+                    anchor: 'end', 
+                    align: (ctx) => ctx.dataset.realData[ctx.dataIndex] < 15 ? 'right' : 'left', 
+                    color: (ctx) => ctx.dataset.realData[ctx.dataIndex] < 15 ? '#333' : '#fff', 
+                    font: { weight: 'bold', size: 10 },
+                    formatter: (v, ctx) => ctx.dataset.realData[ctx.dataIndex].toFixed(1) + '%'
+                },
                 tooltip: {
                     callbacks: {
                         title: (ctx) => top5Easy[ctx[0].dataIndex].q,
-                        label: (ctx) => ` ${ctx.raw}% acierto`
+                        label: (ctx) => ` ${ctx.dataset.realData[ctx.dataIndex].toFixed(1)}% acierto`
                     }
                 }
             },
-            scales: { x: { min: 80, max: 105 } } // give it some room since it's 100% mostly
+            scales: { 
+                y: { 
+                    ticks: { 
+                        autoSkip: false,
+                        maxRotation: 0,
+                        font: { size: 10 }
+                    }
+                },
+                x: { min: 0, max: 115 } 
+            }
         }
     });
+    adjustChartHeight('chart-rend-faciles', top5Easy.length);
 
     // Populate Top 5 Easy Cards
     const easyCardsHtml = top5Easy.map((q, i) => `
@@ -659,15 +1037,24 @@ function renderRendimiento(data, modulos) {
     `).join('');
     $('cards-rend-faciles').innerHTML = easyCardsHtml;
 
-    // Apto vs Reforzar Donut
+    // Apto vs Reforzar Donut with Visual Floor
+    const totalRend = aptos.length + aReforzar.length;
+    const minValRend = totalRend * 0.05;
+    const renderDataRend = [
+        aptos.length > 0 ? Math.max(aptos.length, minValRend) : 0,
+        aReforzar.length > 0 ? Math.max(aReforzar.length, minValRend) : 0
+    ];
+
     makeOrUpdate('chart-rend-apto-donut', {
         type: 'doughnut',
         data: {
             labels: ['Personal Apto ✅', 'Personal a Reforzar ⚠'],
             datasets: [{
-                data: [aptos.length, aReforzar.length],
+                data: renderDataRend,
+                realData: [aptos.length, aReforzar.length],
                 backgroundColor: [COLORS.teal, COLORS.red],
-                borderWidth: 2
+                borderWidth: 2,
+                borderColor: '#fff'
             }]
         },
         options: {
@@ -679,17 +1066,19 @@ function renderRendimiento(data, modulos) {
                     color: '#fff',
                     font: { weight: 'bold', size: 14 },
                     formatter: (v, ctx) => {
-                        if (v === 0) return '';
-                        const total = ctx.dataset.data.reduce((a,b)=>a+b, 0);
-                        return Math.round(v/total*100) + '%';
+                        const val = ctx.dataset.realData[ctx.dataIndex];
+                        const pctRaw = (val / totalRend * 100);
+                        if (pctRaw <= 0) return '';
+                        if (pctRaw < 0.95) return '<1%';
+                        return Math.round(pctRaw) + '%';
                     }
                 },
                 tooltip: {
                     callbacks: {
                         label: (ctx) => {
-                            const total = ctx.dataset.data.reduce((a,b)=>a+b, 0);
-                            const pct = Math.round(ctx.raw/total*100);
-                            return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+                            const val = ctx.dataset.realData[ctx.dataIndex];
+                            const pct = (val / totalRend * 100).toFixed(1);
+                            return ` ${ctx.label}: ${val} (${pct}%)`;
                         }
                     }
                 }
@@ -712,7 +1101,7 @@ function renderRendimiento(data, modulos) {
     makeOrUpdate('chart-rend-reprobados-modulo', {
         type: 'bar',
         data: {
-            labels: repXModArr.map(m => m[0].substring(0, 20)),
+            labels: repXModArr.map(m => m[0].length > 22 ? m[0].substring(0, 19) + '...' : m[0]),
             datasets: [{
                 data: repXModArr.map(m => m[1]),
                 backgroundColor: COLORS.red,
@@ -722,13 +1111,22 @@ function renderRendimiento(data, modulos) {
         },
         options: {
             indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
-                datalabels: { anchor: 'end', align: 'left', color: '#fff', font: { weight: 'bold' } }
+                datalabels: { 
+                    anchor: 'end', 
+                    align: (ctx) => ctx.dataset.data[ctx.dataIndex] > 50 ? 'left' : 'right', 
+                    color: (ctx) => ctx.dataset.data[ctx.dataIndex] > 50 ? '#fff' : '#333', 
+                    offset: 4,
+                    font: { weight: 'bold', size: 10 } 
+                }
             },
-            scales: { x: { beginAtZero: true } }
+            scales: { x: { beginAtZero: true, max: Math.max(...repXModArr.map(m => m[1]), 10) * 1.2 } }
         }
     });
+    adjustChartHeight('chart-rend-reprobados-modulo', repXModArr.length);
 
     // Warning banner
     const banner = $('rend-warning-banner');
@@ -814,12 +1212,12 @@ function renderSatisfaccion(data, modulos) {
             plugins: {
                 legend: { display: false },
                 datalabels: {
-                    anchor: 'end', align: 'top', font: { weight: 'bold' },
+                    anchor: 'end', align: 'top', offset: 4, font: { weight: 'bold', size: 10 },
                     formatter: (v) => v > 0 ? v : ''
                 }
             },
             scales: {
-                y: { beginAtZero: true }
+                y: { beginAtZero: true, max: Math.max(...distCounts) * 1.15 }
             }
         }
     });
@@ -848,10 +1246,11 @@ function renderSatisfaccion(data, modulos) {
     }).sort((a, b) => b.promedio - a.promedio);
 
     // Chart: Sat Modulos
+    adjustChartWidth('chart-sat-modulos', satModArr.length);
     makeOrUpdate('chart-sat-modulos', {
         type: 'bar',
         data: {
-            labels: satModArr.map(m => m.modulo.substring(0, 20) + '...'),
+            labels: satModArr.map(m => m.modulo.length > 22 ? m.modulo.substring(0, 19) + '...' : m.modulo),
             datasets: [{
                 data: satModArr.map(m => m.promedio.toFixed(1)),
                 backgroundColor: COLORS.teal,
@@ -860,6 +1259,8 @@ function renderSatisfaccion(data, modulos) {
             }]
         },
         options: {
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
                 datalabels: {
