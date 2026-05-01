@@ -43,7 +43,19 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCDOptions();
         render();
     });
-    cdSelect.addEventListener('change', e => { filterCD = e.target.value; render(); });
+    cdSelect.addEventListener('change', e => { 
+        filterCD = e.target.value;
+        // Auto-set regional if a specific CD is selected
+        if (filterCD !== 'all') {
+            const item = rawData.find(d => d.cd === filterCD);
+            if (item && filterRegional !== item.regional) {
+                filterRegional = item.regional;
+                regionalSelect.value = filterRegional;
+                updateCDOptions();
+            }
+        }
+        render(); 
+    });
     tabs.forEach(t => t.addEventListener('click', () => switchTab(t)));
     loadData();
 });
@@ -98,12 +110,33 @@ function updateRegionalOptions() {
 }
 
 function updateCDOptions() {
+    const cdsByRegion = {};
     const filteredForCD = rawData.filter(d => filterRegional === 'all' || d.regional === filterRegional);
-    const cds = [...new Set(filteredForCD.filter(d => d.cd && d.cd !== 'No Asignado').map(d => d.cd))].sort();
-    cdSelect.innerHTML = '<option value="all">Todos los CDs</option>' + cds.map(c => `<option value="${c}">${c}</option>`).join('');
+    
+    filteredForCD.forEach(d => {
+        if (d.cd && d.cd !== 'No Asignado') {
+            if (!cdsByRegion[d.regional]) cdsByRegion[d.regional] = new Set();
+            cdsByRegion[d.regional].add(d.cd);
+        }
+    });
+
+    let html = '<option value="all">Todos los CDs</option>';
+    const sortedRegions = Object.keys(cdsByRegion).sort();
+    
+    sortedRegions.forEach(reg => {
+        const cds = Array.from(cdsByRegion[reg]).sort();
+        html += `<optgroup label="Regional ${reg}">`;
+        cds.forEach(c => {
+            html += `<option value="${c}">${c}</option>`;
+        });
+        html += `</optgroup>`;
+    });
+    
+    cdSelect.innerHTML = html;
     
     // Validate if the current filterCD is still valid in the new context
-    if (filterCD !== 'all' && !cds.includes(filterCD)) {
+    const allCds = [...new Set(filteredForCD.map(d => d.cd))];
+    if (filterCD !== 'all' && !allCds.includes(filterCD)) {
         filterCD = 'all';
     }
     cdSelect.value = filterCD;
