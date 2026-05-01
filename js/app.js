@@ -180,7 +180,13 @@ function adjustChartHeight(canvasId, itemCount) {
 function adjustChartWidth(canvasId, itemCount) {
     const wrapper = $(`wrap-${canvasId.replace('chart-', '')}`);
     if (!wrapper) return;
-    const minWidth = itemCount * COL_WIDTH;
+    
+    // Dynamic spacing: provide more room when there are many bars to avoid label overlap
+    let spacing = COL_WIDTH; // default 65
+    if (itemCount > 10) spacing = 95;
+    else if (itemCount > 6) spacing = 80;
+    
+    const minWidth = itemCount * spacing;
     wrapper.style.width = `${Math.max(minWidth, 600)}px`;
 }
 
@@ -273,7 +279,7 @@ function renderGeneral(data, modulos) {
                     anchor: 'end',
                     align: 'top',
                     offset: -2,
-                    font: { weight: 'bold', size: 10 },
+                    font: { weight: 'bold', size: modulos.length > 10 ? 9 : 10 },
                     color: (ctx) => ctx.dataset.label.includes('%') ? COLORS.teal : COLORS.blue,
                     formatter: (v, ctx) => ctx.dataset.label.includes('%') ? v + '%' : v
                 } 
@@ -533,7 +539,7 @@ function renderModulos(data, modulos) {
                     display: true,
                     anchor: 'end',
                     align: 'top',
-                    font: { weight: 'bold', size: 10 },
+                    font: { weight: 'bold', size: modulos.length > 10 ? 9 : 10 },
                     color: (ctx) => ctx.dataset.label.includes('%') ? COLORS.teal : COLORS.blue,
                     formatter: (v, ctx) => ctx.dataset.label.includes('%') ? v + '%' : v
                 } 
@@ -577,13 +583,18 @@ function renderModulos(data, modulos) {
         
         d100.push(v100); d80.push(v80); d60.push(v60); d40.push(v40);
         
-        // Calculate boosted values for rendering with a more aggressive Visual Floor
+        // Use percentages for rendering to ensure consistent bar width across modules
         const total = v100 + v80 + v60 + v40;
-        const visualFloor = total * 0.12; // 12% minimum visual width ensures label space
-        r100.push(v100 > 0 ? Math.max(v100, visualFloor) : 0);
-        r80.push(v80 > 0 ? Math.max(v80, visualFloor) : 0);
-        r60.push(v60 > 0 ? Math.max(v60, visualFloor) : 0);
-        r40.push(v40 > 0 ? Math.max(v40, visualFloor) : 0);
+        const p100 = total ? (v100 / total * 100) : 0;
+        const p80 = total ? (v80 / total * 100) : 0;
+        const p60 = total ? (v60 / total * 100) : 0;
+        const p40 = total ? (v40 / total * 100) : 0;
+        
+        const vf = 10; // 10% visual floor for label space
+        r100.push(v100 > 0 ? Math.max(p100, vf) : 0);
+        r80.push(v80 > 0 ? Math.max(p80, vf) : 0);
+        r60.push(v60 > 0 ? Math.max(p60, vf) : 0);
+        r40.push(v40 > 0 ? Math.max(p40, vf) : 0);
     });
 
     makeOrUpdate('chart-modulo-dist', {
