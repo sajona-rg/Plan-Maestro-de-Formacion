@@ -607,17 +607,19 @@ function renderModulos(data, modulos) {
     const r100 = []; const r80 = []; const r60 = []; const r40 = []; // Rendering values
     
     modulos.forEach(m => {
-        distLabels.push(m.length > 20 ? m.substring(0, 17) + '...' : m);
         const items = modGroup[m];
         const v100 = items.filter(x => x.nota === 100).length;
         const v80 = items.filter(x => x.nota >= 80 && x.nota < 100).length;
         const v60 = items.filter(x => x.nota >= 60 && x.nota < 80).length;
         const v40 = items.filter(x => x.nota < 60).length;
+        const total = v100 + v80 + v60 + v40;
+
+        // Label with total prefix for quick reference
+        distLabels.push(`${total.toLocaleString()} · ${m.length > 22 ? m.substring(0, 19) + '...' : m}`);
         
         d100.push(v100); d80.push(v80); d60.push(v60); d40.push(v40);
         
         // Use percentages for rendering to ensure consistent bar width across modules
-        const total = v100 + v80 + v60 + v40;
         const p100 = total ? (v100 / total * 100) : 0;
         const p80 = total ? (v80 / total * 100) : 0;
         const p60 = total ? (v60 / total * 100) : 0;
